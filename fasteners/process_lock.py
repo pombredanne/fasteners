@@ -83,9 +83,7 @@ class _InterProcessLock(object):
     acquire the lock (and repeat).
     """
 
-    def __init__(self, path, sleep_func=time.sleep, logger=None, offset=0):
-        if offset < 0:
-            raise ValueError("Offset must be greater than or equal to zero")
+    def __init__(self, path, sleep_func=time.sleep, logger=None, offset=-1):
         self.lockfile = None
         self.path = path
         self.acquired = False
@@ -136,7 +134,7 @@ class _InterProcessLock(object):
         # creating a symlink to an important file in our lock path.
         if self.lockfile is None or self.lockfile.closed:
             self.lockfile = open(self.path, 'a')
-            if self.offset > 0:
+            if self.offset >= 0:
                 self.lockfile.seek(self.offset)
 
     def acquire(self, blocking=True,
@@ -241,12 +239,18 @@ class _FcntlLock(_InterProcessLock):
     """Interprocess lock implementation that works on posix systems."""
 
     def trylock(self):
-        fcntl.lockf(self.lockfile, fcntl.LOCK_EX | fcntl.LOCK_NB, 1,
-                    self.lockfile.tell(), os.SEEK_CUR)
+        if self.offset >= 0:
+            fcntl.lockf(self.lockfile, fcntl.LOCK_EX | fcntl.LOCK_NB, 1,
+                        self.lockfile.tell(), os.SEEK_CUR)
+        else:
+            fcntl.lockf(self.lockfile, fcntl.LOCK_EX | fcntl.LOCK_NB)
 
     def unlock(self):
-        fcntl.lockf(self.lockfile, fcntl.LOCK_UN, 1,
-                    self.lockfile.tell(), os.SEEK_CUR)
+        if self.offset >= 0:
+            fcntl.lockf(self.lockfile, fcntl.LOCK_UN, 1,
+                        self.lockfile.tell(), os.SEEK_CUR)
+        else:
+            fcntl.lockf(self.lockfile, fcntl.LOCK_UN)
 
 
 if os.name == 'nt':
