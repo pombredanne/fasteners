@@ -136,7 +136,7 @@ class _InterProcessLock(object):
         # creating a symlink to an important file in our lock path.
         if self.lockfile is None or self.lockfile.closed:
             self.lockfile = open(self.path, 'a')
-            if self.offset >= 0:
+            if self.offset is not None and self.offset >= 0:
                 self.lockfile.seek(self.offset)
 
     def acquire(self, blocking=True,
