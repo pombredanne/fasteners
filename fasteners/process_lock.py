@@ -83,7 +83,9 @@ class _InterProcessLock(object):
     acquire the lock (and repeat).
     """
 
-    def __init__(self, path, sleep_func=time.sleep, logger=None, offset=-1):
+    def __init__(self, path, sleep_func=time.sleep, logger=None, offset=None):
+        if offset is not None and offset < 0:
+            raise ValueError("Offset must be greater than or equal to zero")
         self.lockfile = None
         self.path = path
         self.acquired = False
@@ -239,14 +241,14 @@ class _FcntlLock(_InterProcessLock):
     """Interprocess lock implementation that works on posix systems."""
 
     def trylock(self):
-        if self.offset >= 0:
+        if self.offset is not None:
             fcntl.lockf(self.lockfile, fcntl.LOCK_EX | fcntl.LOCK_NB, 1,
                         self.lockfile.tell(), os.SEEK_CUR)
         else:
             fcntl.lockf(self.lockfile, fcntl.LOCK_EX | fcntl.LOCK_NB)
 
     def unlock(self):
-        if self.offset >= 0:
+        if self.offset is not None:
             fcntl.lockf(self.lockfile, fcntl.LOCK_UN, 1,
                         self.lockfile.tell(), os.SEEK_CUR)
         else:
