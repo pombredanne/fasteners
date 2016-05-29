@@ -31,7 +31,7 @@ install_requires = [
 
 setup(
     name='fasteners',
-    version='0.13.0',
+    version='0.14.1',
     description='A python package that provides useful locks.',
     author="Joshua Harlow",
     author_email='harlowja@yahoo-inc.com',
@@ -49,6 +49,7 @@ setup(
         "Programming Language :: Python :: 2.7",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.4",
+        "Programming Language :: Python :: 3.5",
     ],
     keywords="locks thread threads interprocess"
              " processes process fasteners",

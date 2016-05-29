@@ -66,6 +66,11 @@ class _InterProcessLock(object):
     safe to close the file descriptor while another thread holds the
     lock. Just opening and closing the lock file can break synchronization,
     so lock files must be accessed only using this abstraction.
+
+    .. warning::
+
+       It is quite useful to read before using (to understand
+       the risks involved): http://0pointer.de/blog/projects/locking.html
     """
 
     MAX_DELAY = 0.1
@@ -84,7 +89,7 @@ class _InterProcessLock(object):
 
     def __init__(self, path, sleep_func=time.sleep, logger=None):
         self.lockfile = None
-        self.path = path
+        self.path = _utils.canonicalize_path(path)
         self.acquired = False
         self.sleep_func = sleep_func
         self.logger = _utils.pick_first_not_none(logger, LOG)
@@ -111,10 +116,11 @@ class _InterProcessLock(object):
 
     def _do_open(self):
         basedir = os.path.dirname(self.path)
-        made_basedir = _ensure_tree(basedir)
-        if made_basedir:
-            self.logger.log(_utils.BLATHER,
-                            'Created lock base path `%s`', basedir)
+        if basedir:
+            made_basedir = _ensure_tree(basedir)
+            if made_basedir:
+                self.logger.log(_utils.BLATHER,
+                                'Created lock base path `%s`', basedir)
         # Open in append mode so we don't overwrite any potential contents of
         # the target file. This eliminates the possibility of an attacker
         # creating a symlink to an important file in our lock path.
@@ -170,7 +176,12 @@ class _InterProcessLock(object):
             self.lockfile = None
 
     def __enter__(self):
-        self.acquire()
+        gotten = self.acquire()
+        if not gotten:
+            # This shouldn't happen, but just incase...
+            raise threading.ThreadError("Unable to acquire a file lock"
+                                        " on `%s` (when used as a"
+                                        " context manager)" % self.path)
         return self
 
     def release(self):
@@ -203,30 +214,44 @@ class _InterProcessLock(object):
         return os.path.exists(self.path)
 
     def trylock(self):
-        raise NotImplementedError()
+        self._trylock(self.lockfile)
 
     def unlock(self):
+        self._unlock(self.lockfile)
+
+    @staticmethod
+    def _trylock():
+        raise NotImplementedError()
+
+    @staticmethod
+    def _unlock():
         raise NotImplementedError()
 
 
 class _WindowsLock(_InterProcessLock):
     """Interprocess lock implementation that works on windows systems."""
 
-    def trylock(self):
-        msvcrt.locking(self.lockfile.fileno(), msvcrt.LK_NBLCK, 1)
+    @staticmethod
+    def _trylock(lockfile):
+        fileno = lockfile.fileno()
+        msvcrt.locking(fileno, msvcrt.LK_NBLCK, 1)
 
-    def unlock(self):
-        msvcrt.locking(self.lockfile.fileno(), msvcrt.LK_UNLCK, 1)
+    @staticmethod
+    def _unlock(lockfile):
+        fileno = lockfile.fileno()
+        msvcrt.locking(fileno, msvcrt.LK_UNLCK, 1)
 
 
 class _FcntlLock(_InterProcessLock):
     """Interprocess lock implementation that works on posix systems."""
 
-    def trylock(self):
-        fcntl.lockf(self.lockfile, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    @staticmethod
+    def _trylock(lockfile):
+        fcntl.lockf(lockfile, fcntl.LOCK_EX | fcntl.LOCK_NB)
 
-    def unlock(self):
-        fcntl.lockf(self.lockfile, fcntl.LOCK_UN)
+    @staticmethod
+    def _unlock(lockfile):
+        fcntl.lockf(lockfile, fcntl.LOCK_UN)
 
 
 if os.name == 'nt':
